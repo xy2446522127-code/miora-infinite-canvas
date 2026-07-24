@@ -1,0 +1,24 @@
+# Local account, session, and generated-media data. Never commit these files.
+data/local/
+data/accounts.json
+data/tasks.json
+data/*.db
+data/*.sqlite
+data/*.sqlite3
+output/
+downloads/
+
+# Plugin-local secrets and runtime data.
+plugins/*/.env
+plugins/*/data/
+plugins/*/output/
+plugins/*/downloads/
+*.session
+*.cookie
+
+# Python and Node build artifacts.
+__pycache__/
+*.py[cod]
+node_modules/
+dist/
+.DS_Store
