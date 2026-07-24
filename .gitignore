@@ -22,3 +22,11 @@ __pycache__/
 node_modules/
 dist/
 .DS_Store
+
+# Installed packages for the bundled Python are local runtime state.
+python/Lib/
+python/Scripts/
+
+# Local server diagnostics.
+server-out.log
+server-err.log
