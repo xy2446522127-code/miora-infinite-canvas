@@ -1,0 +1,42 @@
+{
+  "id": "miora-video",
+  "name": "Miora Video (Local)",
+  "version": "0.1.0",
+  "type": "video-provider",
+  "runtime": "node-bridge",
+  "entry": "backend/bridge.mjs",
+  "capabilities": [
+    "validateAccount",
+    "provisionAccount",
+    "estimateCost",
+    "submitTask",
+    "pollTask",
+    "fetchArtifacts"
+  ],
+  "permissions": {
+    "network": ["https://miora.design", "https://api.mail.cx"],
+    "filesystem": ["data", "downloads"],
+    "browserProfile": true,
+    "secrets": ["mailCxApiToken"]
+  },
+  "accountSchema": {
+    "type": "object",
+    "required": ["label", "browserProfileId"],
+    "properties": {
+      "label": { "type": "string" },
+      "browserProfileId": { "type": "string" },
+      "creditBalance": { "type": "number" }
+    }
+  },
+  "taskSchema": {
+    "type": "object",
+    "required": ["prompt"],
+    "properties": {
+      "prompt": { "type": "string" },
+      "duration": { "type": "number" },
+      "aspectRatio": { "type": "string" },
+      "resolution": { "type": "string" },
+      "generateAudio": { "type": "boolean" }
+    }
+  }
+}
