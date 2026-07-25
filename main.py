@@ -38,6 +38,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+from plugin_runtime import PluginRuntime
 
 QUIET_ACCESS_PATHS = {
     "/api/queue_status",
@@ -232,6 +233,9 @@ LOCAL_UPLOAD_DIR = os.path.join(ASSETS_DIR, "uploads")
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")
 API_ENV_FILE = os.path.join(BASE_DIR, "API", ".env")
 DATA_DIR = os.path.join(BASE_DIR, "data")
+PLUGINS_DIR = os.path.join(BASE_DIR, "plugins")
+PLUGIN_LOCAL_DATA_DIR = os.path.join(DATA_DIR, "local", "plugins")
+PLUGIN_RUNTIME = PluginRuntime(PLUGINS_DIR, PLUGIN_LOCAL_DATA_DIR)
 CONVERSATION_DIR = os.path.join(DATA_DIR, "conversations")
 CANVAS_DIR = os.path.join(DATA_DIR, "canvases")
 MEDIA_PREVIEW_DIR = os.path.join(DATA_DIR, "media_previews")
@@ -2510,6 +2514,22 @@ class CanvasVideoRequest(BaseModel):
     generate_audio: bool = False
     multimodal: bool = False
     trusted_asset: bool = False
+
+class PluginAccountRequest(BaseModel):
+    id: str = ""
+    label: str = Field(min_length=1, max_length=120)
+    browserProfileId: str = Field(default="", max_length=180)
+    creditBalance: float = Field(default=0, ge=0)
+    reservedCredits: float = Field(default=0, ge=0)
+    status: str = Field(default="unknown", max_length=40)
+
+class PluginJobRequest(BaseModel):
+    accountId: str = Field(default="", max_length=120)
+    model: str = Field(default="", max_length=120)
+    kind: str = Field(default="video", max_length=60)
+    prompt: str = Field(default="", max_length=10000)
+    parameters: Dict[str, Any] = {}
+    assets: List[Dict[str, Any]] = []
 
 class TempShUploadRequest(BaseModel):
     url: str = ""
@@ -15063,6 +15083,44 @@ def volcengine_video_prompt_text(prompt, aspect_ratio="", duration=None):
         return text
     suffix_text = " ".join(suffixes)
     return f"{text} {suffix_text}".strip() if text else suffix_text
+
+# --- Local plugin system ---------------------------------------------------
+# Plugins are discovered from plugins/<id>/plugin.json.  Their private runtime
+# state is always stored under data/local/plugins and is ignored by Git.
+@app.get("/api/plugins")
+def list_local_plugins():
+    return {"plugins": PLUGIN_RUNTIME.plugins()}
+
+@app.get("/api/plugins/{plugin_id}/accounts")
+def list_plugin_accounts(plugin_id: str):
+    if not PLUGIN_RUNTIME.plugin(plugin_id):
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    return {"accounts": PLUGIN_RUNTIME.accounts(plugin_id)}
+
+@app.post("/api/plugins/{plugin_id}/accounts")
+def save_plugin_account(plugin_id: str, payload: PluginAccountRequest):
+    if not PLUGIN_RUNTIME.plugin(plugin_id):
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    try:
+        return {"account": PLUGIN_RUNTIME.upsert_account(plugin_id, payload.model_dump())}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+@app.get("/api/plugins/{plugin_id}/jobs")
+def list_plugin_jobs(plugin_id: str):
+    if not PLUGIN_RUNTIME.plugin(plugin_id):
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    return {"jobs": PLUGIN_RUNTIME.jobs(plugin_id)}
+
+@app.post("/api/plugins/{plugin_id}/jobs")
+def create_plugin_job(plugin_id: str, payload: PluginJobRequest):
+    manifest = PLUGIN_RUNTIME.plugin(plugin_id)
+    if not manifest:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    required = {"submitTask", "pollTask", "fetchArtifacts"}
+    if not required.issubset(set(manifest.get("capabilities") or [])):
+        raise HTTPException(status_code=400, detail="Plugin does not declare the required video task capabilities")
+    return {"job": PLUGIN_RUNTIME.queue_job(plugin_id, payload.model_dump())}
 
 @app.post("/api/canvas-video")
 async def canvas_video(payload: CanvasVideoRequest):
