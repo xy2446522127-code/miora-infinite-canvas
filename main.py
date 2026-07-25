@@ -38,6 +38,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, Response, StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+
+# The bundled Windows embedded Python uses an isolated import path. Ensure
+# project-local modules (such as plugin_runtime.py) remain importable when
+# launching ``python\\python.exe main.py`` from run.bat.
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 from plugin_runtime import PluginRuntime
 
 QUIET_ACCESS_PATHS = {
